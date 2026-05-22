@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meine Programmierwerkstatt</title>
+    <!-- Google Blockly & Deutsches Sprachpaket -->
+    <script src="https://unpkg.com/blockly/blockly.min.js"></script>
+    <script src="https://unpkg.com/blockly/python_compressed.js"></script>
+    <script src="https://unpkg.com/blockly/blocks_compressed.js"></script>
+    <script src="https://unpkg.com/blockly/msg/de.js"></script>
+
+    <style>
+        body { font-family: Arial, Helvetica, sans-serif; margin: 20px; background-color: #f5f7fb; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .grid { display: flex; gap: 20px; margin-top: 20px; align-items: stretch; }
+        #blocklyDiv { height: 650px; width: 65%; border: 1px solid #ccc; border-radius: 8px; }
+        .right-panel { width: 35%; display: flex; flex-direction: column; gap: 20px; }
+        pre { background: #282c34; color: #abb2bf; padding: 15px; border-radius: 8px; margin: 0; font-family: monospace; overflow-x: auto; white-space: pre-wrap; }
+        #codeArea, #consoleArea { flex-grow: 1; min-height: 250px; }
+        button { background-color: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 4px; cursor: pointer; font-size: 16px; font-weight: bold; }
+        button:hover { background-color: #0056b3; }
+        h3 { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🧩 Meine Programmierwerkstatt</h1>
+    <p>Baue deine Blöcke links zusammen und beobachte rechts den echten Python-Code!</p>
+    
+    <button onclick="runPython()">▶️ Programm starten</button>
+
+    <div class="grid">
+        <div id="blocklyDiv"></div>
+        <div class="right-panel">
+            <div>
+                <h3>🐍 Python-Code:</h3>
+                <pre id="codeArea"># Verbinde Blöcke...</pre>
+            </div>
+            <div>
+                <h3>💻 Ausgabe (Konsole):</h3>
+                <pre id="consoleArea">Wartet auf Ausführung...</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Blockly Toolbox Definition -->
+<xml id="toolbox" style="display: none">
+    <category name="Logik" colour="%{BKY_LOGIC_HUE}">
+        <block type="controls_if"></block>
+        <block type="logic_compare"></block>
+        <block type="logic_operation"></block>
+        <block type="logic_negate"></block>
+        <block type="logic_boolean"></block>
+    </category>
+    <category name="Schleifen" colour="%{BKY_LOOPS_HUE}">
+        <block type="controls_repeat_ext">
+            <value name="TIMES"><block type="math_number"><field name="NUM">5</field></block></value>
+        </block>
+        <block type="controls_whileUntil"></block>
+        <block type="controls_for">
+            <value name="FROM"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+            <value name="TO"><shadow type="math_number"><field name="NUM">10</field></shadow></value>
+            <value name="BY"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+        </block>
+    </category>
+    <category name="Mathematik" colour="%{BKY_MATH_HUE}">
+        <block type="math_number"></block>
+        <block type="math_arithmetic"></block>
+        <block type="math_modulo"></block>
+        <block type="math_random_int">
+            <value name="FROM"><shadow type="math_number"><field name="NUM">1</field></shadow></value>
+            <value name="TO"><shadow type="math_number"><field name="NUM">100</field></shadow></value>
+        </block>
+    </category>
+    <category name="Text & Ausgabe" colour="%{BKY_TEXTS_HUE}">
+        <block type="text"></block>
+        <block type="text_join"></block>
+        <block type="text_print"></block>
+        <block type="text_prompt_ext">
+            <value name="TEXT"><shadow type="text"><field name="TEXT">Wie heißt du?</field></shadow></value>
+        </block>
+    </category>
+    <category name="Listen" colour="%{BKY_LISTS_HUE}">
+        <block type="lists_create_with">
+            <mutation items="3"></mutation>
+        </block>
+        <block type="lists_length"></block>
+    </category>
+    <category name="Variablen" colour="%{BKY_VARIABLES_HUE}" custom="VARIABLE"></category>
+    <category name="Funktionen" colour="%{BKY_PROCEDURES_HUE}" custom="PROCEDURE"></category>
+</xml>
+
+<script>
+    // Blockly im "Scratch-Modus" initialisieren
+    const workspace = Blockly.inject('blocklyDiv', {
+        toolbox: document.getElementById('toolbox'),
+        renderer: 'zelos',
+        grid: {spacing: 20, length: 3, colour: '#ccc', snap: true},
+        trashcan: true,
+        zoom: {
+            controls: true,
+            wheel: true,
+            startScale: 0.9,
+            maxScale: 3,
+            minScale: 0.3,
+            scaleSpeed: 1.2
+        }
+    });
+
+    // Größe der Blöcke zur Sicherheit neu berechnen
+    window.addEventListener('resize', () => Blockly.svgResize(workspace), false);
+    setTimeout(() => Blockly.svgResize(workspace), 800);
+
+    // Live-Update des Python-Codes bei jeder Änderung
+    workspace.addChangeListener(() => {
+        const code = Blockly.Python.workspaceToCode(workspace);
+        document.getElementById('codeArea').textContent = code || "# Verbinde Blöcke...";
+    });
+
+    // Code an das Backend senden
+    async function runPython() {
+        const code = Blockly.Python.workspaceToCode(workspace);
+        const consoleEl = document.getElementById('consoleArea');
+        
+        if (!code.trim()) {
+            consoleEl.textContent = "Der Arbeitsbereich ist leer. Füge zuerst Blöcke hinzu.";
+            return;
+        }
+
+        consoleEl.textContent = "Ausführen... ⏳";
+        try {
+            const response = await fetch('/run_code', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code: code })
+            });
+            const result = await response.json();
+            consoleEl.textContent = result.output;
+        } catch (error) {
+            consoleEl.textContent = "❌ Keine Verbindung zum Server. Bitte lade die Seite neu.";
+        }
+    }
+</script>
+</body>
+</html>
