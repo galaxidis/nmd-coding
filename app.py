@@ -3,8 +3,21 @@ import multiprocessing
 import sys
 import io
 import traceback
+import random
 
 app = Flask(__name__)
+
+# Simuliertes Antwort-System für Eingabe-Fragen der Schüler (z.B. input())
+def mock_input(prompt=""):
+    if prompt:
+        print(prompt) # Zeigt die Frage in der Konsole an
+    
+    # Eine Liste lustiger/typischer Schülernamen
+    names = ["Emma", "Nico", "Lukas", "Mia", "Maximilian", "Sofia", "David", "Laura"]
+    chosen_name = random.choice(names)
+    
+    print(chosen_name) # Simuliert das Eintippen in der Konsole
+    return chosen_name
 
 # Diese Funktion läuft isoliert in einem eigenen Prozess (Schutz vor Endlosschleifen)
 def execute_student_code(code, return_dict):
@@ -12,9 +25,16 @@ def execute_student_code(code, return_dict):
     sys.stdout = redirected_output
     
     try:
+        # Wir modifizieren die "builtins", um die blockierenden input() Befehle 
+        # durch unsere sichere, simulierte "mock_input" Funktion zu ersetzen.
+        builtins_dict = __import__('builtins').__dict__.copy()
+        builtins_dict['input'] = mock_input
+        builtins_dict['raw_input'] = mock_input
+        
         local_scope = {}
-        # Ausführung des generierten Codes
-        exec(code, {"__builtins__": __import__('builtins')}, local_scope)
+        # Ausführung des generierten Codes mit modifizierten builtins
+        exec(code, {"__builtins__": builtins_dict}, local_scope)
+        
         return_dict['output'] = redirected_output.getvalue()
         return_dict['error'] = None
     except Exception as e:
