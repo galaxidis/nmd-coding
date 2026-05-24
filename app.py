@@ -4,20 +4,53 @@ import sys
 import io
 import traceback
 import random
+import re
 
 app = Flask(__name__)
 
-# Simuliertes Antwort-System für Eingabe-Fragen der Schüler (z.B. input())
+# Simuliertes Antwort-System für Eingabe-Fragen der Schüler (z.B. input() / Frage-Block)
 def mock_input(prompt=""):
     if prompt:
         print(prompt) # Zeigt die Frage in der Konsole an
     
-    # Eine Liste lustiger/typischer Schülernamen
+    # Eine Liste typischer Schülernamen für die Simulation
     names = ["Emma", "Nico", "Lukas", "Mia", "Maximilian", "Sofia", "David", "Laura"]
     chosen_name = random.choice(names)
     
-    print(chosen_name) # Simuliert das Eintippen in der Konsole
+    print(chosen_name) # Simuliert das Eintippen des Namens in der Konsole
     return chosen_name
+
+# Kinderfreundliche Übersetzung von Python-Fehlermeldungen
+def translate_error(error_traceback):
+    if not error_traceback:
+        return "Unbekannter Fehler ❌"
+    
+    error_lines = error_traceback.strip().split('\n')
+    last_line = error_lines[-1]
+    
+    # Fehlerübersetzungen
+    if "ZeroDivisionError" in last_line:
+        return "Fehler ❌:\nUups! Du hast versucht, eine Zahl durch 0 zu teilen. Das ist in der Mathematik nicht erlaubt! 🧮"
+        
+    elif "NameError" in last_line:
+        match = re.search(r"name '(.+)' is not defined", last_line)
+        variable_name = f" '{match.group(1)}'" if match else ""
+        return f"Fehler ❌:\nHoppla! Du verwendest ein Wort oder eine Variable{variable_name}, die der Computer noch nicht kennt. Hast du dich vielleicht vertippt oder vergessen, die Variable vorher zu erstellen? 🔍"
+        
+    elif "TypeError" in last_line:
+        return "Fehler ❌:\nDa passen die Typen nicht zusammen! Beispielsweise kannst du Text nicht mit einer Zahl addieren, ohne sie vorher umzuwandeln. 🧩"
+        
+    elif "SyntaxError" in last_line:
+        return "Fehler ❌:\nHier stimmt die Grammatik (Syntax) deines Codes nicht. Hast du irgendwo eine Klammer vergessen, Anführungszeichen nicht geschlossen oder falsch eingerückt? ✍️"
+        
+    elif "IndexError" in last_line:
+        return "Fehler ❌:\nDu greifst auf ein Element in einer Liste zu, das gar nicht existiert (z. B. das 5. Element bei einer Liste mit nur 3 Einträgen). 📋"
+        
+    elif "AttributeError" in last_line:
+        return "Fehler ❌:\nDu versuchst etwas zu benutzen, das dieses Objekt gar nicht kann oder besitzt. Hast du dich beim Namen vertippt? ⚙️"
+    
+    # Standard-Fehlermeldung, falls kein Filter greift
+    return f"Fehler ❌:\n{last_line}"
 
 # Diese Funktion läuft isoliert in einem eigenen Prozess (Schutz vor Endlosschleifen)
 def execute_student_code(code, return_dict):
@@ -25,7 +58,7 @@ def execute_student_code(code, return_dict):
     sys.stdout = redirected_output
     
     try:
-        # Wir modifizieren die "builtins", um die blockierenden input() Befehle 
+        # Wir modifizieren die "builtins", um blockierende input() Befehle 
         # durch unsere sichere, simulierte "mock_input" Funktion zu ersetzen.
         builtins_dict = __import__('builtins').__dict__.copy()
         builtins_dict['input'] = mock_input
@@ -67,8 +100,9 @@ def run_code():
         return jsonify({'output': 'Fehler ❌:\nZeitüberschreitung! Hast du eine Endlosschleife gebaut?'})
     
     if return_dict.get('error'):
-        error_lines = return_dict['error'].strip().split('\n')
-        return jsonify({'output': f"Fehler ❌:\n{error_lines[-1]}"})
+        # Übersetze den abgefangenen Fehler
+        friendly_error = translate_error(return_dict['error'])
+        return jsonify({'output': friendly_error})
         
     output = return_dict.get('output', '')
     return jsonify({'output': output if output else "Programm erfolgreich ausgeführt (keine Textausgabe)."})
