@@ -30,19 +30,12 @@ def translate_error(error_str):
     elif "TypeError" in error_str:
         return "Hier passen die Datentypen nicht zusammen (z. B. wenn du Text mit einer Zahl addieren möchtest). Nutze dafür den 'erstelle Text aus' Block! 🧩"
         
-    # Standard-Rückgabe, falls kein bekannter Fehler gematcht wurde (die letzte Zeile des Tracebacks)
     error_lines = error_str.strip().split('\n')
     return f"Fehler ❌:\n{error_lines[-1] if error_lines else 'Unbekannter Fehler'}"
 
 def mock_input(prompt=""):
-    """
-    Simuliert die klassische Python input() Funktion, damit der 
-    Server bei Benutzerabfragen im Klassenzimmer nicht hängen bleibt.
-    """
     if prompt:
         print(prompt)
-    
-    # Eine Liste lustiger, zufälliger Schülernamen zur Simulation
     namen = ["Emma 👧", "Nico 👦", "Lukas 🎒", "Mia 🌸", "Leo 🦁", "Sofia 🎈"]
     gewaehlter_name = random.choice(namen)
     print(f"-> [Automatische Antwort]: {gewaehlter_name}")
@@ -51,18 +44,17 @@ def mock_input(prompt=""):
 def execute_student_code(code, return_dict, pressed_keys):
     """
     Diese Funktion läuft isoliert in einem eigenen Prozess.
-    Dadurch ist der Haupt-Webserver vor blockierenden Endlosschleifen geschützt.
     """
     redirected_output = io.StringIO()
     sys.stdout = redirected_output
     
     try:
-        # Wir modifizieren die "builtins", um blockierende input() Befehle zu ersetzen
+        # builtins modifizieren für Simulationen
         builtins_dict = __import__('builtins').__dict__.copy()
         builtins_dict['input'] = mock_input
         builtins_dict['raw_input'] = mock_input
         
-        # Funktion zur Abfrage des interaktiven Tastendrucks im Sandbox-System
+        # Funktion für den Tastatur-Block
         def is_key_pressed(key):
             is_pressed = str(key).lower() in [str(k).lower() for k in pressed_keys]
             print(f"📡 Prüfe Taste [{str(key).upper()}]: {'GEDRÜCKT! 🟢' if is_pressed else 'nicht gedrückt 🔴'}")
@@ -71,7 +63,6 @@ def execute_student_code(code, return_dict, pressed_keys):
         builtins_dict['is_key_pressed'] = is_key_pressed
         
         local_scope = {}
-        # Ausführung des Schüler-Codes mit den modifizierten Sandbox-Optionen
         exec(code, {"__builtins__": builtins_dict}, local_scope)
         
         return_dict['output'] = redirected_output.getvalue()
@@ -83,58 +74,35 @@ def execute_student_code(code, return_dict, pressed_keys):
 
 @app.route('/')
 def index():
-    """Rendert die Blockly-Hauptseite im Browser."""
     return render_template('index.html')
 
 @app.route('/run_code', methods=['POST'])
 def run_code():
-    """
-    Empfängt den Python-Code und die aktuell gedrückten Tasten des Frontends,
-    führt sie in der isolierten Sandbox aus und liefert die Ausgabe zurück.
-    """
     data = request.get_json() or {}
     code = data.get('code', '')
-    pressed_keys = data.get('pressed_keys', [])  # Holt gedrückte Tasten vom Client-Browser
+    pressed_keys = data.get('pressed_keys', []) 
     
-    # Manager für die sichere Datenübertragung zwischen den Prozessen
     manager = multiprocessing.Manager()
     return_dict = manager.dict()
     
-    # Starte den Sandbox-Prozess mit einem harten Timeout-Schutz
     p = multiprocessing.Process(
         target=execute_student_code, 
         args=(code, return_dict, pressed_keys)
     )
     p.start()
-    
-    # Maximal 2.0 Sekunden auf die Ausführung warten
     p.join(2.0)
     
-    # Falls der Prozess noch lebt, handelt es sich um eine Endlosschleife
     if p.is_alive():
         p.terminate()
         p.join()
-        return jsonify({
-            'output': 'Fehler ❌:\nZeitüberschreitung! Hast du eine unendliche "wiederhole solange"-Schleife gebaut? ⏳'
-        })
+        return jsonify({'output': 'Fehler ❌:\nZeitüberschreitung! Hast du eine Endlosschleife gebaut? ⏳'})
     
-    # Fehlerprüfung und ggf. Übersetzung
     if return_dict.get('error'):
         user_friendly_error = translate_error(return_dict['error'])
         return jsonify({'output': user_friendly_error})
         
     output = return_dict.get('output', '')
-    return jsonify({
-        'output': output if output else "Dein Programm wurde erfolgreich ausgeführt! (Es gab aber keine Textausgabe mit 'gib aus'.)"
-    })
+    return jsonify({'output': output if output else "Programm erfolgreich ausgeführt! (Keine Textausgabe mit 'gib aus'.)"})
 
 if __name__ == '__main__':
-    # Aktiviert den Debugger für lokale Tests vor dem Deployment
     app.run(debug=True)
-```
-eof
-
-### Übersicht der Backend-Architektur:
-* **Präzises Timeout-Management:** Die Zeitüberschreitungs-Meldung wurde kindgerecht aufbereitet und mit einer Sanduhr (`⏳`) versehen, falls Schüler eine Endlosschleife konstruieren.
-* **Intelligente Simulation:** Der `input()`-Ersatz simuliert nun automatisch eine Schülerantwort mit wechselnden Emojis in der Konsole. Das macht die Terminal-Ausgabe lebendiger.
-* **Vollständige Tastenabfrage:** Die Liste der gedrückten Tasten (`pressed_keys`) wird sicher aus dem Request extrahiert und der virtuellen Funktion `is_key_pressed()` im Sandkasten zur Verfügung gestellt.
